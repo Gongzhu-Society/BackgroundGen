@@ -2,10 +2,8 @@
 # -*- coding: UTF-8 -*-
 import numpy,random
 from scipy.spatial import Delaunay
-#import matplotlib
-#matplotlib.use('Agg')
-#import matplotlib.pyplot as plt
 from PIL import Image,ImageDraw
+import colorsys
 
 def gen_tri(HEIGHT=1080,WIDTH=1920,N_inside=30,N_edge_width=5,N_edge_height=4,margin=0.05):
     w_inf=int(WIDTH*margin)
@@ -28,19 +26,64 @@ class ColorGen():
         self.method=method
         self.extra_paras=extra_paras
 
-    def gen_colors(self):
-        if self.method=="rand":
-            return self.colors_rand(*self.extra_paras)
+    def gauss_cut(mu,sigma):
+        """
+            cut gauss distribution into [0,1]
+        """
+        r=random.gauss(mu,sigma)
+        while r<0 or r>1:
+            r=random.gauss(mu,sigma)
+        return r
 
-    def colors_rand(self):
-        #return numpy.array([random.random() for t in self.ts])
-        return [(random.randint(0,255),random.randint(0,255),random.randint(0,255)) for t in self.ts]
+    def colors_rand_rgb(self,rt=(0.8,0.2),gt=(0.1,0.1),bt=(0.1,0.1)):
+        """
+            random triangular color with rgb format
+            rt, gt and bt is (mu,sigma)
+        """
+        colors=[]
+        for t in self.ts:
+            r=ColorGen.gauss_cut(*rt)
+            g=ColorGen.gauss_cut(*gt)
+            b=ColorGen.gauss_cut(*bt)
+            colors.append((int(r*255),int(g*255),int(b*255)))
+        return colors
 
+    def colors_rand_hsv(self,ht=(0.95,0.05),st=(0.9,0.1),vt=(0.7,0.1)):
+        """
+            random triangular color with hsv format
+            hsv is hue, saturation, value(brightness)
+        """
+        colors=[]
+        for t in self.ts:
+            h=ColorGen.gauss_cut(*ht)
+            s=ColorGen.gauss_cut(*st)
+            v=ColorGen.gauss_cut(*vt)
+            rgb=colorsys.hsv_to_rgb(h,s,v)
+            colors.append((int(rgb[0]*255),int(rgb[1]*255),int(rgb[2]*255)))
+        return colors
+
+    def colors_rand_pt_rgb(self,rt=(0.5,0.2),gt=(0.1,0.1),bt=(0.1,0.1)):
+        """
+            random point color and get triangular color as its vertices' average
+            I like this mode best
+        """
+        pt_r=[255*ColorGen.gauss_cut(*rt) for pt in self.pts]
+        pt_g=[255*ColorGen.gauss_cut(*gt) for pt in self.pts]
+        pt_b=[255*ColorGen.gauss_cut(*bt) for pt in self.pts]
+        colors=[]
+        for t in self.ts:
+            r=int((pt_r[t[0]]+pt_r[t[1]]+pt_r[t[2]])/3)
+            g=int((pt_g[t[0]]+pt_g[t[1]]+pt_g[t[2]])/3)
+            b=int((pt_b[t[0]]+pt_b[t[1]]+pt_b[t[2]])/3)
+            colors.append((r,g,b))
+        return colors
 
 if __name__=="__main__":
-    pts,tri=gen_tri(N_inside=30)
+    pts,tri=gen_tri(N_inside=40)
     cg=ColorGen(tri.simplices,pts)
-    colors=cg.gen_colors()
+    #colors=cg.colors_rand_rgb()
+    #colors=cg.colors_rand_hsv()
+    colors=cg.colors_rand_pt_rgb()
 
     img=Image.new('RGB',(1920,1080)) #,(255, 255, 255)) # default black
     draw=ImageDraw.Draw(img)
@@ -48,9 +91,12 @@ if __name__=="__main__":
         draw.polygon([pts[t[0]],pts[t[1]],pts[t[2]]],fill=colors[i])
     img.show()
     img.save('bkg.png')
-    img.save('bkg.jpg')
 
 """
+#import matplotlib
+#matplotlib.use('Agg')
+#import matplotlib.pyplot as plt
+
     fig=plt.figure(figsize=[16,9],dpi=30) #16*120=1920
     ax=fig.subplots(1)
     #ax.triplot(pts[:,0],pts[:,1],tri.simplices,color='green', marker='o')
